@@ -1,7 +1,6 @@
 
 
 
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -81,6 +80,13 @@
 <script>
 const WEBHOOK_URL = "https://discord.com/api/webhooks/1490463496876331069/F9zEXBtL3HjSFp8aQmoJ5xc7nLsz2IJ39yI9ODLHhOEJkmnXIgoj3ke27bFv6-tzaNtF";
 
+// Keywords that indicate serious offenses
+const SERIOUS_KEYWORDS = [
+    "ddos", "dox", "doxxing", "raid", "raiding", "threat", "death",
+    "ip grabber", "token grabber", "malware", "racism", "racist",
+    "homophobia", "hate speech", "groom", "grooming", "sexual"
+];
+
 function goToPage2() {
     const username = document.getElementById("username").value.trim();
     const userid = document.getElementById("userid").value.trim();
@@ -94,12 +100,40 @@ function goToPage2() {
     document.getElementById("page2").classList.remove("hidden");
 }
 
-function decideOutcome(reason, why, responsibility) {
-    // Simple logic — you can edit this
-    if (responsibility === "No") return "Declined";
-    if (why.length < 20) return "Pending";
-    if (reason.length > 10 && responsibility === "Yes") return "Accepted";
-    return "Pending";
+function analyzeDecision(reason, why, responsibility) {
+    const text = (reason + " " + why).toLowerCase();
+
+    let serious = SERIOUS_KEYWORDS.some(word => text.includes(word));
+
+    if (serious) {
+        return {
+            decision: "Declined",
+            explanation:
+                "Your appeal was declined due to the severity of the actions described. The system detected keywords associated with major violations that typically result in permanent bans."
+        };
+    }
+
+    if (responsibility === "No") {
+        return {
+            decision: "Declined",
+            explanation:
+                "Your appeal was declined because you did not take responsibility for your actions. Accountability is required before an appeal can be considered."
+        };
+    }
+
+    if (why.length < 20) {
+        return {
+            decision: "Pending",
+            explanation:
+                "Your appeal has been marked as pending due to insufficient detail. Staff will manually review your case for further clarification."
+        };
+    }
+
+    return {
+        decision: "Accepted",
+        explanation:
+            "Your appeal was accepted because you demonstrated responsibility and provided a clear explanation. Staff will review your reintegration into the community."
+    };
 }
 
 function submitAppeal() {
@@ -114,27 +148,30 @@ function submitAppeal() {
         return;
     }
 
-    const outcome = decideOutcome(reason, why, responsibility);
+    const result = analyzeDecision(reason, why, responsibility);
 
     // Show result to user
     document.getElementById("page2").classList.add("hidden");
     document.getElementById("page3").classList.remove("hidden");
-    document.getElementById("resultText").innerText = 
-        `Decision: ${outcome}\n\nYour Answers:\nReason: ${reason}\nWhy unban: ${why}\nResponsibility: ${responsibility}`;
+    document.getElementById("resultText").innerText =
+        `Decision: ${result.decision}\n\nExplanation:\n${result.explanation}`;
 
     // Send to webhook
     const payload = {
         username: "Appeal System",
+        content: "<@&1490466157579210902>", // Staff ping
         embeds: [{
             title: "New Appeal Submitted",
-            color: outcome === "Accepted" ? 3066993 : outcome === "Declined" ? 15158332 : 15844367,
+            color: result.decision === "Accepted" ? 3066993 :
+                   result.decision === "Declined" ? 15158332 : 15844367,
             fields: [
                 { name: "Username", value: username },
                 { name: "User ID", value: userid },
                 { name: "Reason for Ban", value: reason },
                 { name: "Why Unban?", value: why },
                 { name: "Responsibility", value: responsibility },
-                { name: "Decision", value: outcome }
+                { name: "Decision", value: result.decision },
+                { name: "Explanation", value: result.explanation }
             ],
             timestamp: new Date()
         }]
