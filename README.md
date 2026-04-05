@@ -1,28 +1,35 @@
 
 
 
+
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Appeal Form</title>
+<title>Appeal System</title>
+
 <style>
     body {
-        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
         background: #0f0f0f;
         color: white;
+        font-family: Arial, sans-serif;
         display: flex;
         justify-content: center;
         align-items: center;
         height: 100vh;
         transition: background 0.4s ease;
     }
+
     .container {
-        background: rgba(255,255,255,0.05);
+        width: 420px;
+        background: rgba(255,255,255,0.06);
         padding: 25px;
         border-radius: 12px;
-        width: 420px;
         backdrop-filter: blur(10px);
     }
+
     input, textarea, select, button {
         width: 100%;
         padding: 10px;
@@ -30,25 +37,70 @@
         border-radius: 6px;
         border: none;
     }
+
     button {
         background: #00c853;
         color: white;
         cursor: pointer;
         font-size: 16px;
     }
+
     button:hover {
         background: #00e676;
     }
+
     .hidden {
         display: none;
     }
+
+    /* BLACKLIST MODE */
     .blacklisted {
         background: #8b0000 !important;
+    }
+
+    /* ADMIN BOX */
+    #adminBox {
+        position: fixed;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 40px;
+        height: 40px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 6px;
+        cursor: pointer;
+        transition: width 0.3s ease;
+        overflow: hidden;
+        padding: 5px;
+    }
+
+    #adminBox.expanded {
+        width: 200px;
+    }
+
+    #adminInput {
+        width: 100%;
+        margin-top: 5px;
+        padding: 5px;
+        border-radius: 4px;
+        border: none;
+        display: none;
+    }
+
+    #adminBox.expanded #adminInput {
+        display: block;
     }
 </style>
 </head>
 <body>
 
+<!-- ADMIN BOX -->
+<div id="adminBox" onclick="toggleAdminBox()">
+    <span>⚙️</span>
+    <input id="adminInput" placeholder="Enter admin code">
+</div>
+
+<!-- MAIN UI -->
 <div class="container" id="mainContainer">
 
     <!-- PAGE 1 -->
@@ -81,7 +133,7 @@
 
     <!-- BLACKLIST SCREEN -->
     <div id="blacklistScreen" class="hidden">
-        <h2 style="color:white; text-align:center;">
+        <h2 style="text-align:center;">
             You’re being blacklisted from our community for serious violations of our policies and Discord’s Terms of Service standards.
         </h2>
     </div>
@@ -89,23 +141,57 @@
 </div>
 
 <script>
-const WEBHOOK_URL = "YOUR_WEBHOOK_HERE"; // Replace with your webhook
+/* ------------------------------
+   CONFIG
+------------------------------ */
+const WEBHOOK_URL = "YOUR_WEBHOOK_HERE"; // Insert your webhook
 
-// Serious violation triggers
-const BLACKLIST_KEYWORDS = [
-    "explicit", "nsfw", "sexual content", "cp",
-    "dox", "doxxing", "leaked info", "personal information",
-    "murder", "kill you", "death threat", "threaten",
+const BLACKLIST_TRIGGERS = [
+    "explicit", "nsfw", "sexual content",
+    "dox", "doxxing", "personal information",
+    "murder", "kill", "death threat", "threaten",
     "steal assets", "asset theft", "stole assets"
 ];
 
-// Check if user is already blacklisted locally
-window.onload = () => {
-    if (localStorage.getItem("blacklisted") === "true") {
-        triggerBlacklistScreen();
-    }
-};
+/* ------------------------------
+   ADMIN BOX
+------------------------------ */
+function toggleAdminBox() {
+    const box = document.getElementById("adminBox");
+    box.classList.toggle("expanded");
+}
 
+document.getElementById("adminInput").addEventListener("keyup", function(e) {
+    if (e.target.value === "Revoke_02") {
+        localStorage.removeItem("blacklisted");
+        location.reload();
+    }
+});
+
+/* ------------------------------
+   BLACKLIST CHECK
+------------------------------ */
+function triggerBlacklist() {
+    localStorage.setItem("blacklisted", "true");
+    document.body.classList.add("blacklisted");
+    document.getElementById("mainContainer").innerHTML = `
+        <h2 style="text-align:center;">
+            You’re being blacklisted from our community for serious violations of our policies and Discord’s Terms of Service standards.
+        </h2>
+    `;
+}
+
+function checkBlacklist() {
+    if (localStorage.getItem("blacklisted") === "true") {
+        triggerBlacklist();
+    }
+}
+
+checkBlacklist();
+
+/* ------------------------------
+   PAGE LOGIC
+------------------------------ */
 function goToPage2() {
     const username = document.getElementById("username").value.trim();
     const userid = document.getElementById("userid").value.trim();
@@ -121,18 +207,12 @@ function goToPage2() {
 
 function containsBlacklistReason(text) {
     const lower = text.toLowerCase();
-    return BLACKLIST_KEYWORDS.some(word => lower.includes(word));
+    return BLACKLIST_TRIGGERS.some(word => lower.includes(word));
 }
 
-function triggerBlacklistScreen() {
-    document.body.classList.add("blacklisted");
-    document.getElementById("mainContainer").innerHTML = `
-        <h2 style="color:white; text-align:center;">
-            You’re being blacklisted from our community for serious violations of our policies and Discord’s Terms of Service standards.
-        </h2>
-    `;
-}
-
+/* ------------------------------
+   SUBMIT APPEAL
+------------------------------ */
 function submitAppeal() {
     const username = document.getElementById("username").value;
     const userid = document.getElementById("userid").value;
@@ -145,21 +225,20 @@ function submitAppeal() {
         return;
     }
 
-    // BLACKLIST CHECK
+    // SERIOUS VIOLATION → BLACKLIST
     if (containsBlacklistReason(reason)) {
-        localStorage.setItem("blacklisted", "true");
-        triggerBlacklistScreen();
+        triggerBlacklist();
         return;
     }
 
-    // Normal appeal flow
+    // NORMAL APPEAL
     document.getElementById("page2").classList.add("hidden");
     document.getElementById("page3").classList.remove("hidden");
 
     document.getElementById("resultText").innerText =
         "Your appeal has been submitted. Staff will review it shortly.";
 
-    // Send to webhook
+    // SEND TO WEBHOOK
     const payload = {
         username: "Appeal System",
         content: "<@&1490466157579210902>",
