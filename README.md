@@ -2,7 +2,6 @@
 
 
 
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -23,11 +22,17 @@
     }
 
     .container {
-        width: 420px;
+        width: 440px;
         background: rgba(255,255,255,0.06);
         padding: 25px;
         border-radius: 12px;
         backdrop-filter: blur(10px);
+        box-shadow: 0 0 25px rgba(0,0,0,0.6);
+    }
+
+    h2 {
+        margin-top: 0;
+        text-align: center;
     }
 
     input, textarea, select, button {
@@ -36,6 +41,13 @@
         margin-top: 10px;
         border-radius: 6px;
         border: none;
+        font-size: 14px;
+        box-sizing: border-box;
+    }
+
+    textarea {
+        min-height: 80px;
+        resize: vertical;
     }
 
     button {
@@ -43,6 +55,7 @@
         color: white;
         cursor: pointer;
         font-size: 16px;
+        font-weight: 600;
     }
 
     button:hover {
@@ -64,27 +77,40 @@
         left: 10px;
         top: 50%;
         transform: translateY(-50%);
-        width: 40px;
-        height: 40px;
-        background: rgba(255,255,255,0.15);
-        border-radius: 6px;
+        width: 50px;
+        height: 50px;
+        background: rgba(255,255,255,0.18);
+        border-radius: 8px;
         cursor: pointer;
-        transition: width 0.3s ease;
+        transition: width 0.3s ease, height 0.3s ease;
         overflow: hidden;
-        padding: 5px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+
+    #adminBox span {
+        font-size: 22px;
+        line-height: 1;
     }
 
     #adminBox.expanded {
-        width: 200px;
+        width: 230px;
+        height: 90px;
     }
 
     #adminInput {
         width: 100%;
-        margin-top: 5px;
-        padding: 5px;
-        border-radius: 4px;
+        margin-top: 8px;
+        padding: 8px;
+        font-size: 15px;
+        border-radius: 6px;
         border: none;
         display: none;
+        box-sizing: border-box;
     }
 
     #adminBox.expanded #adminInput {
@@ -128,7 +154,7 @@
     <!-- PAGE 3 -->
     <div id="page3" class="hidden">
         <h2>Your Appeal Result</h2>
-        <p id="resultText"></p>
+        <p id="resultText" style="white-space: pre-line;"></p>
     </div>
 
     <!-- BLACKLIST SCREEN -->
@@ -144,13 +170,17 @@
 /* ------------------------------
    CONFIG
 ------------------------------ */
-const WEBHOOK_URL = "YOUR_WEBHOOK_HERE"; // Insert your webhook
+const WEBHOOK_URL = "https://discord.com/api/webhooks/1490463496876331069/F9zEXBtL3HjSFp8aQmoJ5xc7nLsz2IJ39yI9ODLHhOEJkmnXIgoj3ke27bFv6-tzaNtF";
 
 const BLACKLIST_TRIGGERS = [
+    // sharing explicit content
     "explicit", "nsfw", "sexual content",
-    "dox", "doxxing", "personal information",
-    "murder", "kill", "death threat", "threaten",
-    "steal assets", "asset theft", "stole assets"
+    // doxxing personal information
+    "dox", "doxx", "doxxing", "personal information", "leaked info",
+    // threatening someone to murder or kill them
+    "murder", "kill you", "kill them", "death threat", "threaten to kill",
+    // stealing assets
+    "steal assets", "asset theft", "stole assets", "stolen assets"
 ];
 
 /* ------------------------------
@@ -164,12 +194,14 @@ function toggleAdminBox() {
 document.getElementById("adminInput").addEventListener("keyup", function(e) {
     if (e.target.value === "Revoke_02") {
         localStorage.removeItem("blacklisted");
+        e.target.value = "";
+        alert("Blacklist revoked locally. Reloading page.");
         location.reload();
     }
 });
 
 /* ------------------------------
-   BLACKLIST CHECK
+   BLACKLIST HANDLING
 ------------------------------ */
 function triggerBlacklist() {
     localStorage.setItem("blacklisted", "true");
@@ -181,16 +213,21 @@ function triggerBlacklist() {
     `;
 }
 
-function checkBlacklist() {
+function checkBlacklistOnLoad() {
     if (localStorage.getItem("blacklisted") === "true") {
         triggerBlacklist();
     }
 }
 
-checkBlacklist();
+checkBlacklistOnLoad();
+
+function containsBlacklistReason(text) {
+    const lower = text.toLowerCase();
+    return BLACKLIST_TRIGGERS.some(word => lower.includes(word));
+}
 
 /* ------------------------------
-   PAGE LOGIC
+   PAGE FLOW
 ------------------------------ */
 function goToPage2() {
     const username = document.getElementById("username").value.trim();
@@ -205,19 +242,44 @@ function goToPage2() {
     document.getElementById("page2").classList.remove("hidden");
 }
 
-function containsBlacklistReason(text) {
-    const lower = text.toLowerCase();
-    return BLACKLIST_TRIGGERS.some(word => lower.includes(word));
+/* ------------------------------
+   DECISION LOGIC
+------------------------------ */
+function analyzeDecision(reason, why, responsibility) {
+    const text = (reason + " " + why).toLowerCase();
+
+    // Serious violations → blacklist handled before this, but keep logic clear
+    if (responsibility === "No") {
+        return {
+            decision: "Declined",
+            explanation:
+                "Your appeal was declined because you did not take responsibility for your actions. Accountability is required before we can consider lifting a global ban."
+        };
+    }
+
+    if (why.length < 20) {
+        return {
+            decision: "Pending",
+            explanation:
+                "Your appeal has been marked as pending due to limited detail in your explanation. A staff member will manually review your case for more context before a final decision is made."
+        };
+    }
+
+    return {
+        decision: "Accepted",
+        explanation:
+            "Your appeal was accepted because you showed responsibility and provided a clear explanation of the situation. Staff will now review your case and process your return to the community."
+    };
 }
 
 /* ------------------------------
    SUBMIT APPEAL
 ------------------------------ */
 function submitAppeal() {
-    const username = document.getElementById("username").value;
-    const userid = document.getElementById("userid").value;
-    const reason = document.getElementById("reason").value;
-    const why = document.getElementById("why").value;
+    const username = document.getElementById("username").value.trim();
+    const userid = document.getElementById("userid").value.trim();
+    const reason = document.getElementById("reason").value.trim();
+    const why = document.getElementById("why").value.trim();
     const responsibility = document.getElementById("responsibility").value;
 
     if (!reason || !why || !responsibility) {
@@ -231,12 +293,25 @@ function submitAppeal() {
         return;
     }
 
-    // NORMAL APPEAL
+    // NORMAL DECISION FLOW
+    const result = analyzeDecision(reason, why, responsibility);
+
     document.getElementById("page2").classList.add("hidden");
     document.getElementById("page3").classList.remove("hidden");
 
-    document.getElementById("resultText").innerText =
-        "Your appeal has been submitted. Staff will review it shortly.";
+    const resultText = `
+Decision: ${result.decision}
+
+Explanation:
+${result.explanation}
+
+Your Answers:
+• Reason for ban: ${reason}
+• Why unban: ${why}
+• Responsibility: ${responsibility}
+    `.trim();
+
+    document.getElementById("resultText").innerText = resultText;
 
     // SEND TO WEBHOOK
     const payload = {
@@ -244,13 +319,16 @@ function submitAppeal() {
         content: "<@&1490466157579210902>",
         embeds: [{
             title: "New Appeal Submitted",
-            color: 15844367,
+            color: result.decision === "Accepted" ? 3066993 :
+                   result.decision === "Declined" ? 15158332 : 15844367,
             fields: [
-                { name: "Username", value: username },
-                { name: "User ID", value: userid },
-                { name: "Reason for Ban", value: reason },
-                { name: "Why Unban?", value: why },
-                { name: "Responsibility", value: responsibility }
+                { name: "Username", value: username || "Unknown", inline: false },
+                { name: "User ID", value: userid || "Unknown", inline: false },
+                { name: "Reason for Ban", value: reason || "None provided", inline: false },
+                { name: "Why Unban?", value: why || "None provided", inline: false },
+                { name: "Responsibility", value: responsibility, inline: false },
+                { name: "Decision", value: result.decision, inline: false },
+                { name: "Explanation", value: result.explanation, inline: false }
             ],
             timestamp: new Date()
         }]
@@ -260,6 +338,8 @@ function submitAppeal() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
+    }).catch(() => {
+        // Fail silently on webhook errors to avoid breaking UX
     });
 }
 </script>
