@@ -14,6 +14,7 @@
         justify-content: center;
         align-items: center;
         height: 100vh;
+        transition: background 0.4s ease;
     }
     .container {
         background: rgba(255,255,255,0.05);
@@ -41,11 +42,14 @@
     .hidden {
         display: none;
     }
+    .blacklisted {
+        background: #8b0000 !important;
+    }
 </style>
 </head>
 <body>
 
-<div class="container">
+<div class="container" id="mainContainer">
 
     <!-- PAGE 1 -->
     <div id="page1">
@@ -75,17 +79,32 @@
         <p id="resultText"></p>
     </div>
 
+    <!-- BLACKLIST SCREEN -->
+    <div id="blacklistScreen" class="hidden">
+        <h2 style="color:white; text-align:center;">
+            You’re being blacklisted from our community for serious violations of our policies and Discord’s Terms of Service standards.
+        </h2>
+    </div>
+
 </div>
 
 <script>
-const WEBHOOK_URL = "https://discord.com/api/webhooks/1490463496876331069/F9zEXBtL3HjSFp8aQmoJ5xc7nLsz2IJ39yI9ODLHhOEJkmnXIgoj3ke27bFv6-tzaNtF";
+const WEBHOOK_URL = "YOUR_WEBHOOK_HERE"; // Replace with your webhook
 
-// Keywords that indicate serious offenses
-const SERIOUS_KEYWORDS = [
-    "ddos", "dox", "doxxing", "raid", "raiding", "threat", "death",
-    "ip grabber", "token grabber", "malware", "racism", "racist",
-    "homophobia", "hate speech", "groom", "grooming", "sexual"
+// Serious violation triggers
+const BLACKLIST_KEYWORDS = [
+    "explicit", "nsfw", "sexual content", "cp",
+    "dox", "doxxing", "leaked info", "personal information",
+    "murder", "kill you", "death threat", "threaten",
+    "steal assets", "asset theft", "stole assets"
 ];
+
+// Check if user is already blacklisted locally
+window.onload = () => {
+    if (localStorage.getItem("blacklisted") === "true") {
+        triggerBlacklistScreen();
+    }
+};
 
 function goToPage2() {
     const username = document.getElementById("username").value.trim();
@@ -100,40 +119,18 @@ function goToPage2() {
     document.getElementById("page2").classList.remove("hidden");
 }
 
-function analyzeDecision(reason, why, responsibility) {
-    const text = (reason + " " + why).toLowerCase();
+function containsBlacklistReason(text) {
+    const lower = text.toLowerCase();
+    return BLACKLIST_KEYWORDS.some(word => lower.includes(word));
+}
 
-    let serious = SERIOUS_KEYWORDS.some(word => text.includes(word));
-
-    if (serious) {
-        return {
-            decision: "Declined",
-            explanation:
-                "Your appeal was declined due to the severity of the actions described. The system detected keywords associated with major violations that typically result in permanent bans."
-        };
-    }
-
-    if (responsibility === "No") {
-        return {
-            decision: "Declined",
-            explanation:
-                "Your appeal was declined because you did not take responsibility for your actions. Accountability is required before an appeal can be considered."
-        };
-    }
-
-    if (why.length < 20) {
-        return {
-            decision: "Pending",
-            explanation:
-                "Your appeal has been marked as pending due to insufficient detail. Staff will manually review your case for further clarification."
-        };
-    }
-
-    return {
-        decision: "Accepted",
-        explanation:
-            "Your appeal was accepted because you demonstrated responsibility and provided a clear explanation. Staff will review your reintegration into the community."
-    };
+function triggerBlacklistScreen() {
+    document.body.classList.add("blacklisted");
+    document.getElementById("mainContainer").innerHTML = `
+        <h2 style="color:white; text-align:center;">
+            You’re being blacklisted from our community for serious violations of our policies and Discord’s Terms of Service standards.
+        </h2>
+    `;
 }
 
 function submitAppeal() {
@@ -148,30 +145,33 @@ function submitAppeal() {
         return;
     }
 
-    const result = analyzeDecision(reason, why, responsibility);
+    // BLACKLIST CHECK
+    if (containsBlacklistReason(reason)) {
+        localStorage.setItem("blacklisted", "true");
+        triggerBlacklistScreen();
+        return;
+    }
 
-    // Show result to user
+    // Normal appeal flow
     document.getElementById("page2").classList.add("hidden");
     document.getElementById("page3").classList.remove("hidden");
+
     document.getElementById("resultText").innerText =
-        `Decision: ${result.decision}\n\nExplanation:\n${result.explanation}`;
+        "Your appeal has been submitted. Staff will review it shortly.";
 
     // Send to webhook
     const payload = {
         username: "Appeal System",
-        content: "<@&1490466157579210902>", // Staff ping
+        content: "<@&1490466157579210902>",
         embeds: [{
             title: "New Appeal Submitted",
-            color: result.decision === "Accepted" ? 3066993 :
-                   result.decision === "Declined" ? 15158332 : 15844367,
+            color: 15844367,
             fields: [
                 { name: "Username", value: username },
                 { name: "User ID", value: userid },
                 { name: "Reason for Ban", value: reason },
                 { name: "Why Unban?", value: why },
-                { name: "Responsibility", value: responsibility },
-                { name: "Decision", value: result.decision },
-                { name: "Explanation", value: result.explanation }
+                { name: "Responsibility", value: responsibility }
             ],
             timestamp: new Date()
         }]
